@@ -1,0 +1,54 @@
+name: Publicar en Instagram
+
+on:
+  schedule:
+    # 18:30 UTC = 20:30 en verano / 19:30 en invierno (hora de Madrid)
+    - cron: "30 18 * * *"
+  workflow_dispatch:
+    inputs:
+      modo:
+        description: "publicar | simular | comprobar"
+        default: "comprobar"
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publicar
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Publicar
+        env:
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          GRAPH_HOST: ${{ vars.GRAPH_HOST || 'graph.facebook.com' }}
+        run: |
+          MODO="${{ github.event.inputs.modo || 'publicar' }}"
+          if [ "$MODO" = "publicar" ]; then
+            python publicador/publicar.py
+          else
+            python publicador/publicar.py --$MODO
+          fi
+
+      - name: Guardar registro de publicaciones
+        if: always()
+        run: |
+          if [ -n "$(git status --porcelain estado/publicadas.json)" ]; then
+            git config user.name "publicador-instagram"
+            git config user.email "actions@users.noreply.github.com"
+            git add estado/publicadas.json
+            git commit -m "Publicado $(date +%F)"
+            git pull --rebase
+            git push
+          fi
