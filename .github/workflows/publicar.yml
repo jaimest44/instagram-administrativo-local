@@ -2,8 +2,9 @@ name: Publicar en Instagram
 
 on:
   schedule:
-    # 18:30 UTC = 20:30 en verano / 19:30 en invierno (hora de Madrid)
-    - cron: "30 18 * * *"
+    # GitHub retrasa los cron a veces horas: se lanza cada 30 min por la tarde y
+    # publicar.py solo publica a partir de HORA_PUBLICACION (hora de Madrid), una vez al dia.
+    - cron: "17,47 17-22 * * *"
   workflow_dispatch:
     inputs:
       modo:

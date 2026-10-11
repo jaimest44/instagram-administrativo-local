@@ -33,6 +33,7 @@ PUBLICADAS = os.path.join(REPO, "estado", "publicadas.json")
 HOST = os.environ.get("GRAPH_HOST", "graph.facebook.com")
 VERSION = os.environ.get("GRAPH_VERSION", "v24.0")
 AVISO_COLA = 7  # avisa cuando queden menos dias preparados
+HORA_PUBLICACION = dt.time(20, 30)  # hora de Madrid; antes de esta hora no se publica
 
 
 class ErrorAPI(Exception):
@@ -130,9 +131,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--comprobar", action="store_true")
     ap.add_argument("--simular", action="store_true")
+    ap.add_argument("--ya", action="store_true", help="publica aunque no sea la hora")
     a = ap.parse_args()
 
-    hoy = dt.datetime.now(ZoneInfo("Europe/Madrid")).date()
+    ahora = dt.datetime.now(ZoneInfo("Europe/Madrid"))
+    hoy = ahora.date()
     publicadas = leer_json(PUBLICADAS, {})
     cola = pendientes(hoy, publicadas)
     futuras = [d for d in os.listdir(COLA) if d > hoy.isoformat()] if os.path.isdir(COLA) else []
@@ -147,16 +150,14 @@ def main():
     if not cola:
         print("Nada que publicar hoy.")
         return
+    if not (a.ya or a.simular) and ahora.time() < HORA_PUBLICACION:
+        print(f"Son las {ahora:%H:%M} en Madrid: se publica a partir de las {HORA_PUBLICACION:%H:%M}.")
+        return
 
-    # una publicacion por ejecucion: la de hoy, o la de ayer si fallo. Las mas antiguas se saltan
-    # para no ir siempre con retraso (vuelven a estar disponibles si se regenera la cola).
-    ayer = (hoy - dt.timedelta(days=1)).isoformat()
-    if hoy.isoformat() in cola:
-        dia = hoy.isoformat()
-    elif ayer in cola:
-        dia = ayer
-    else:
-        print(f"Nada para hoy. Hay {len(cola)} días antiguos sin publicar que se saltan.")
+    # solo la de hoy y como mucho una al dia: los dias que fallaron se saltan
+    dia = hoy.isoformat()
+    if dia not in cola:
+        print(f"Nada para hoy (hay {len(cola)} días antiguos sin publicar que se saltan).")
         return
     if a.simular:
         print(f"Publicaría {dia}: {url_base()}/{dia}")
