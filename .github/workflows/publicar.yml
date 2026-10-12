@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       modo:
-        description: "publicar | simular | comprobar"
+        description: "publicar | simular | comprobar | diagnosticar"
         default: "comprobar"
         required: true
 

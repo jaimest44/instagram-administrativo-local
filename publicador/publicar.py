@@ -127,11 +127,32 @@ def publicar(dia):
             "id_pregunta": meta.get("id")}
 
 
+NECESARIOS = ["instagram_basic", "instagram_content_publish", "pages_read_engagement", "pages_show_list"]
+
+
+def diagnosticar():
+    """Lista los permisos del token guardado y dice cuales faltan para publicar."""
+    token = os.environ["IG_ACCESS_TOKEN"]
+    info = api("GET", "debug_token", input_token=token).get("data", {})
+    permisos = sorted(info.get("scopes", []))
+    print(f"Tipo de token: {info.get('type')}  ·  válido: {info.get('is_valid')}  ·  "
+          f"caduca: {'nunca' if not info.get('expires_at') else dt.datetime.fromtimestamp(info['expires_at'])}")
+    print("Permisos concedidos:", ", ".join(permisos) or "(ninguno)")
+    for g in info.get("granular_scopes", []):
+        print(f"  {g.get('scope')}: {len(g.get('target_ids', []))} recursos")
+    faltan = [p for p in NECESARIOS if p not in permisos]
+    if faltan:
+        print(f"::error::Al token le faltan permisos para publicar: {', '.join(faltan)}")
+        sys.exit(1)
+    print("Tiene todos los permisos necesarios para publicar.")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--comprobar", action="store_true")
     ap.add_argument("--simular", action="store_true")
     ap.add_argument("--ya", action="store_true", help="publica aunque no sea la hora")
+    ap.add_argument("--diagnosticar", action="store_true", help="muestra los permisos del token (nunca el token)")
     a = ap.parse_args()
 
     ahora = dt.datetime.now(ZoneInfo("Europe/Madrid"))
@@ -146,6 +167,9 @@ def main():
     if a.comprobar:
         cuenta = api("GET", os.environ["IG_USER_ID"], fields="username")
         print(f"Token correcto. Cuenta: @{cuenta.get('username')}")
+        return
+    if a.diagnosticar:
+        diagnosticar()
         return
     if not cola:
         print("Nada que publicar hoy.")
