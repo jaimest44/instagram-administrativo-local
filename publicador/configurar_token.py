@@ -24,6 +24,8 @@ import urllib.parse
 import urllib.request
 
 VERSION = "v24.0"
+NECESARIOS = ["instagram_basic", "instagram_content_publish", "pages_read_engagement",
+              "pages_show_list", "business_management"]
 
 
 def get(ruta, **params):
@@ -45,6 +47,17 @@ def main():
     app_id = input("App ID: ").strip()
     app_secret = getpass.getpass("App Secret (no se verá al escribir): ").strip()
     corto = getpass.getpass("Token del Explorador de la API Graph (no se verá): ").strip()
+
+    # comprueba los permisos ANTES de guardar nada (con el token de app, que siempre puede consultarlo)
+    info = get("debug_token", input_token=corto, access_token=f"{app_id}|{app_secret}").get("data", {})
+    concedidos = set(info.get("scopes", []))
+    faltan = [p for p in NECESARIOS if p not in concedidos]
+    if faltan:
+        sys.exit("\nEl token NO tiene estos permisos: " + ", ".join(faltan) + "\n"
+                 "Vuelve al Explorador, comprueba que están en la lista de Permisos, pulsa Generate Access Token\n"
+                 "y en la ventana de Facebook acepta todo (si no te pregunta nada, pulsa 'Editar acceso').\n"
+                 "No se ha guardado nada.")
+    print("Permisos correctos:", ", ".join(sorted(concedidos & set(NECESARIOS))))
 
     largo = get("oauth/access_token", grant_type="fb_exchange_token",
                 client_id=app_id, client_secret=app_secret, fb_exchange_token=corto)["access_token"]

@@ -133,7 +133,15 @@ NECESARIOS = ["instagram_basic", "instagram_content_publish", "pages_read_engage
 def diagnosticar():
     """Lista los permisos del token guardado y dice cuales faltan para publicar."""
     token = os.environ["IG_ACCESS_TOKEN"]
-    info = api("GET", "debug_token", input_token=token).get("data", {})
+    try:
+        info = api("GET", "debug_token", input_token=token).get("data", {})
+    except ErrorAPI as e:
+        if "pages_read_engagement" in str(e):
+            print("::error::El token guardado no tiene pages_read_engagement (ni puede consultarse a sí mismo). "
+                  "Genera uno nuevo y vuelve a ejecutar publicador/configurar_token.py.")
+        else:
+            print(f"::error::No se pudo consultar el token: {e}")
+        sys.exit(1)
     permisos = sorted(info.get("scopes", []))
     print(f"Tipo de token: {info.get('type')}  ·  válido: {info.get('is_valid')}  ·  "
           f"caduca: {'nunca' if not info.get('expires_at') else dt.datetime.fromtimestamp(info['expires_at'])}")
