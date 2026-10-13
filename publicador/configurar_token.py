@@ -58,13 +58,25 @@ def main():
                  "y en la ventana de Facebook acepta todo (si no te pregunta nada, pulsa 'Editar acceso').\n"
                  "No se ha guardado nada.")
     print("Permisos correctos:", ", ".join(sorted(concedidos & set(NECESARIOS))))
+    if info.get("type") != "USER":
+        sys.exit("\nEse token es de PÁGINA, no de usuario. En el Explorador, en el desplegable 'Usuario o página',\n"
+                 "elige 'Identificador de usuario' y vuelve a pulsar Generate Access Token. No se ha guardado nada.")
 
     largo = get("oauth/access_token", grant_type="fb_exchange_token",
                 client_id=app_id, client_secret=app_secret, fb_exchange_token=corto)["access_token"]
 
-    paginas = get("me/accounts", fields="name,access_token,instagram_business_account{id,username}",
-                  access_token=largo).get("data", [])
-    con_ig = [p for p in paginas if p.get("instagram_business_account")]
+    campos = "name,access_token,instagram_business_account{id,username}"
+    paginas = get("me/accounts", fields=campos, access_token=largo).get("data", [])
+    # paginas gestionadas desde un portfolio empresarial: no salen en me/accounts,
+    # pero sus ids vienen en los permisos granulares del token
+    vistas = {p["id"] for p in paginas}
+    for g in info.get("granular_scopes", []):
+        if g.get("scope") == "pages_show_list":
+            for pid in g.get("target_ids", []):
+                if pid not in vistas:
+                    paginas.append(get(pid, fields=campos, access_token=largo))
+                    vistas.add(pid)
+    con_ig = [p for p in paginas if p.get("instagram_business_account") and p.get("access_token")]
     if not con_ig:
         sys.exit("Ninguna de tus páginas de Facebook tiene una cuenta de Instagram profesional vinculada.")
 
