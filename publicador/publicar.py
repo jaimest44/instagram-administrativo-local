@@ -34,6 +34,8 @@ HOST = os.environ.get("GRAPH_HOST", "graph.facebook.com")
 VERSION = os.environ.get("GRAPH_VERSION", "v24.0")
 AVISO_COLA = 7  # avisa cuando queden menos dias preparados
 HORA_PUBLICACION = dt.time(20, 30)  # hora de Madrid; antes de esta hora no se publica
+# GitHub lanza los cron con horas de retraso: una ejecucion de madrugada aun publica el dia anterior
+HORA_RECUPERACION = dt.time(6, 0)
 
 
 class ErrorAPI(Exception):
@@ -165,6 +167,9 @@ def main():
 
     ahora = dt.datetime.now(ZoneInfo("Europe/Madrid"))
     hoy = ahora.date()
+    de_madrugada = ahora.time() < HORA_RECUPERACION
+    if de_madrugada:
+        hoy -= dt.timedelta(days=1)  # el cron de anoche llego tarde: le toca al dia de ayer
     publicadas = leer_json(PUBLICADAS, {})
     cola = pendientes(hoy, publicadas)
     futuras = [d for d in os.listdir(COLA) if d > hoy.isoformat()] if os.path.isdir(COLA) else []
@@ -182,7 +187,7 @@ def main():
     if not cola:
         print("Nada que publicar hoy.")
         return
-    if not (a.ya or a.simular) and ahora.time() < HORA_PUBLICACION:
+    if not (a.ya or a.simular or de_madrugada) and ahora.time() < HORA_PUBLICACION:
         print(f"Son las {ahora:%H:%M} en Madrid: se publica a partir de las {HORA_PUBLICACION:%H:%M}.")
         return
 
