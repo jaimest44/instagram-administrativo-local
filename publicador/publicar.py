@@ -106,6 +106,17 @@ def pendientes(hoy, publicadas):
     return [d for d in dias if d <= hoy.isoformat() and d not in publicadas]
 
 
+def comprobar_cuenta():
+    """Para en seco si las credenciales son de otra cuenta que la de este repositorio (cuenta.txt)."""
+    with open(os.path.join(AQUI, "cuenta.txt"), encoding="utf-8") as f:
+        esperada = f.read().strip().lstrip("@").lower()
+    real = api("GET", os.environ["IG_USER_ID"], fields="username").get("username", "")
+    if real.lower() != esperada:
+        raise ErrorAPI(f"Las credenciales guardadas son de @{real}, pero este repositorio publica en @{esperada}. "
+                       f"No se publica nada. Repite publicador/configurar_token.py en la carpeta correcta.")
+    return real
+
+
 def publicar(dia):
     carpeta = os.path.join(COLA, dia)
     meta = leer_json(os.path.join(carpeta, "meta.json"), {})
@@ -113,6 +124,7 @@ def publicar(dia):
         texto = f.read()
     ig = os.environ["IG_USER_ID"]
     base = f"{url_base()}/{dia}"
+    comprobar_cuenta()
 
     hijos = []
     for img in meta["imagenes"]:
@@ -178,8 +190,7 @@ def main():
         print(f"::warning::Solo quedan {len(futuras)} días en cola. Ejecuta generar_cola.py en el PC.")
 
     if a.comprobar:
-        cuenta = api("GET", os.environ["IG_USER_ID"], fields="username")
-        print(f"Token correcto. Cuenta: @{cuenta.get('username')}")
+        print(f"Token correcto. Cuenta: @{comprobar_cuenta()}")
         return
     if a.diagnosticar:
         diagnosticar()

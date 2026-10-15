@@ -17,6 +17,7 @@ El script lo cambia por un token de larga duración, saca de él el token de la 
 """
 import getpass
 import json
+import os
 import subprocess
 import sys
 import urllib.error
@@ -26,6 +27,10 @@ import urllib.request
 VERSION = "v24.0"
 NECESARIOS = ["instagram_basic", "instagram_content_publish", "pages_read_engagement",
               "pages_show_list", "business_management"]
+
+# cuenta de Instagram en la que publica ESTE repositorio (publicador/cuenta.txt)
+with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "cuenta.txt"), encoding="utf-8") as _f:
+    ESPERADA = _f.read().strip().lstrip("@").lower()
 
 
 def get(ruta, **params):
@@ -80,10 +85,15 @@ def main():
     if not con_ig:
         sys.exit("Ninguna de tus páginas de Facebook tiene una cuenta de Instagram profesional vinculada.")
 
-    for i, p in enumerate(con_ig, 1):
-        print(f"  {i}. {p['name']}  ->  @{p['instagram_business_account'].get('username')}")
-    n = int(input("¿Qué cuenta usar? ") or 1) if len(con_ig) > 1 else 1
-    elegida = con_ig[n - 1]
+    print("Cuentas a las que da acceso este token:")
+    for p in con_ig:
+        print(f"  - {p['name']}  ->  @{p['instagram_business_account'].get('username')}")
+    # cada repositorio publica en UNA cuenta concreta: nunca elegir otra por descarte
+    elegidas = [p for p in con_ig if p["instagram_business_account"].get("username", "").lower() == ESPERADA]
+    if not elegidas:
+        sys.exit(f"\nEste token no da acceso a @{ESPERADA}, que es la cuenta de esta carpeta. No se ha guardado nada.\n"
+                 f"Genera el token de nuevo y, en la ventana de Facebook, marca la página y la cuenta de Instagram de @{ESPERADA}.")
+    elegida = elegidas[0]
 
     secreto("IG_USER_ID", elegida["instagram_business_account"]["id"])
     secreto("IG_ACCESS_TOKEN", elegida["access_token"])  # token de pagina: no caduca
