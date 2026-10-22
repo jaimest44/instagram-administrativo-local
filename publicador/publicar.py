@@ -18,6 +18,7 @@ import argparse
 import datetime as dt
 import json
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -198,6 +199,60 @@ def diagnosticar():
     print("Tiene todos los permisos necesarios para publicar.")
 
 
+# ---------------------------------------------------------------- Facebook (pagina)
+
+def fb_api(metodo, ruta, host="graph.facebook.com", **params):
+    """Llamada a la API de Facebook con el token de la PAGINA (secreto FB_PAGE_TOKEN)."""
+    params["access_token"] = os.environ["FB_PAGE_TOKEN"]
+    url = f"https://{host}/{VERSION}/{ruta}"
+    datos = urllib.parse.urlencode(params).encode()
+    req = urllib.request.Request(url, data=datos, method="POST") if metodo == "POST" \
+        else urllib.request.Request(url + "?" + datos.decode())
+    for intento in range(3):
+        try:
+            with urllib.request.urlopen(req, timeout=120) as r:
+                return json.load(r)
+        except urllib.error.HTTPError as e:
+            cuerpo = e.read().decode(errors="replace")
+            if e.code >= 500 and intento < 2:
+                time.sleep(10 * (intento + 1))
+                continue
+            try:
+                msg = json.loads(cuerpo).get("error", {}).get("message", cuerpo)
+            except ValueError:
+                msg = cuerpo
+            raise ErrorAPI(f"Facebook {e.code}: {msg[:300]}") from None
+
+
+def texto_facebook(texto):
+    """En Facebook los enlaces se pueden pulsar: sobra "(enlace en la bio)" y se añade https y utm."""
+    texto = texto.replace(" (enlace en la bio)", "").replace("(enlace en la bio)", "")
+    return re.sub(r"(?<![/\w.])(app\.[a-z]+\.com)\b",
+                  r"https://\1/?utm_source=facebook&utm_medium=post", texto)
+
+
+def publicar_facebook(dia):
+    """Publica en la pagina de Facebook lo mismo que se acaba de publicar en Instagram.
+    Devuelve None si esta cuenta no tiene Facebook configurado."""
+    pagina = os.environ.get("FB_PAGE_ID")
+    if not pagina or not os.environ.get("FB_PAGE_TOKEN"):
+        return None
+    carpeta = os.path.join(COLA, dia)
+    meta = leer_json(os.path.join(carpeta, "meta.json"), {})
+    with open(os.path.join(carpeta, "caption.txt"), encoding="utf-8") as f:
+        texto = texto_facebook(f.read())
+    base = f"{url_base()}/{dia}"
+    if meta.get("reel"):
+        r = fb_api("POST", f"{pagina}/videos", host="graph-video.facebook.com",
+                   file_url=f"{base}/{meta['reel']}", description=texto)
+        return {"video_id": r.get("id")}
+    fotos = [fb_api("POST", f"{pagina}/photos", url=f"{base}/{img}", published="false")["id"]
+             for img in meta["imagenes"]]
+    r = fb_api("POST", f"{pagina}/feed", message=texto,
+               attached_media=json.dumps([{"media_fbid": f} for f in fotos]))
+    return {"post_id": r.get("id")}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--comprobar", action="store_true")
@@ -268,6 +323,15 @@ def main():
     except ErrorAPI as e:
         print(f"::error::No se pudo publicar {dia}: {e}")
         sys.exit(1)
+    # Facebook: si falla, Instagram ya esta publicado; se avisa pero no se marca como error
+    try:
+        fb = publicar_facebook(dia)
+        if fb:
+            resultado["facebook"] = fb
+            print(f"Publicado también en Facebook: {fb}")
+    except Exception as e:  # noqa: BLE001
+        resultado["facebook_error"] = str(e)[:300]
+        print(f"::warning::Instagram OK, pero falló Facebook: {e}")
     publicadas[dia] = resultado
     os.makedirs(os.path.dirname(PUBLICADAS), exist_ok=True)
     with open(PUBLICADAS, "w", encoding="utf-8") as f:
