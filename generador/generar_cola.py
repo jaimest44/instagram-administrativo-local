@@ -28,6 +28,10 @@ USADAS = os.path.join(REPO, "estado", "usadas.json")
 # lunes=0 ... domingo=6
 PLAN_SEMANAL = {0: "test", 1: "test", 2: "corta", 3: "test", 4: "test", 5: "corta", 6: "test"}
 
+# Dos publicaciones al dia: mediodia (carpeta AAAA-MM-DD_mediodia) y noche (carpeta AAAA-MM-DD)
+FRANJAS = [("_mediodia", "mediodia"), ("", "noche")]
+
+
 # Separacion minima (en publicaciones) antes de repetir tema / convocatoria / caso
 SEPARACION_TEMA = 4
 SEPARACION_CONV = 3
@@ -72,6 +76,14 @@ def elegir(candidatas, historial, rng):
     return None
 
 
+def tipo_para(dia, franja, disponibles):
+    """Mediodia: test (rapido de responder). Noche: plan semanal de test y supuestos."""
+    tipo = "test" if franja == "mediodia" else PLAN_SEMANAL[dia.weekday()]
+    if not disponibles[tipo]:  # se agoto un tipo: usa el otro
+        tipo = "test" if tipo == "corta" else "corta"
+    return tipo
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dias", type=int, default=30, help="dias de cola que deben quedar preparados")
@@ -84,11 +96,16 @@ def main():
 
     hoy = dt.date.today()
     fin = hoy + dt.timedelta(days=a.dias)
-    inicio = hoy + dt.timedelta(days=1)
-    if ya_en_cola:
-        inicio = max(inicio, dt.date.fromisoformat(ya_en_cola[-1]) + dt.timedelta(days=1))
-    if inicio > fin:
-        print(f"La cola ya llega hasta {ya_en_cola[-1]}. Nada que hacer.")
+    en_cola = set(ya_en_cola)
+    huecos = []  # (dia, sufijo de carpeta, franja) que faltan por generar
+    dia = hoy + dt.timedelta(days=1)
+    while dia <= fin:
+        for sufijo, franja in FRANJAS:
+            if dia.isoformat() + sufijo not in en_cola:
+                huecos.append((dia, sufijo, franja))
+        dia += dt.timedelta(days=1)
+    if not huecos:
+        print(f"La cola ya está completa hasta {fin}. Nada que hacer.")
         return
 
     disponibles = defaultdict(list)
@@ -104,34 +121,32 @@ def main():
 
     historial = [leer_json(os.path.join(COLA, d, "meta.json"), {}) for d in ya_en_cola[-SEPARACION_CASO:]]
     rng = random.Random(hoy.isoformat())
-    dia = inicio
     nuevas = 0
-    while dia <= fin:
-        tipo = PLAN_SEMANAL[dia.weekday()]
-        if not disponibles[tipo]:  # se agoto un tipo: usa el otro
-            tipo = "test" if tipo == "corta" else "corta"
+    for dia, sufijo, franja in huecos:
+        tipo = tipo_para(dia, franja, disponibles)
         p = elegir(disponibles[tipo], historial, rng)
         if p is None:
             print("No quedan preguntas disponibles.")
             break
         disponibles[tipo].remove(p)
 
-        carpeta = os.path.join(COLA, dia.isoformat())
+        clave = dia.isoformat() + sufijo
+        carpeta = os.path.join(COLA, clave)
         imagenes = [os.path.basename(r) for r in generar(p, carpeta)]
         with open(os.path.join(carpeta, "caption.txt"), "w", encoding="utf-8") as f:
             f.write(caption(p))
         meta = {
-            "fecha": dia.isoformat(), "id": p["id"],
+            "fecha": dia.isoformat(), "franja": franja, "id": p["id"],
             "formato": "desarrollo" if es_desarrollo(p) else p["tipo"],
             "convocatoria": p["convocatoria"], "tema": p["tema"], "caso": caso(p),
             "imagenes": imagenes,
         }
         guardar_json(os.path.join(carpeta, "meta.json"), meta)
-        usadas[p["id"]] = dia.isoformat()
+        usadas[p["id"]] = clave
         historial.append(meta)
         nuevas += 1
-        print(f"{dia}  {meta['formato']:<10} {p['convocatoria']:<28} {p['pregunta'][:60]}")
-        dia += dt.timedelta(days=1)
+        origen = p["convocatoria"] or p.get("materia", "")
+        print(f"{dia}  {franja:<8} {meta['formato']:<10} {origen:<28} {(p.get('pregunta') or p.get('texto', ''))[:55]}")
 
     guardar_json(USADAS, usadas)
     print(f"\n{nuevas} publicaciones nuevas. Quedan sin usar: "
@@ -143,7 +158,7 @@ def main():
             subprocess.run(["git", *args], cwd=REPO, check=True)
         git("pull", "--rebase", "--autostash")
         git("add", "cola", "estado/usadas.json")
-        git("commit", "-m", f"Cola: {nuevas} publicaciones hasta {dia - dt.timedelta(days=1)}")
+        git("commit", "-m", f"Cola: {nuevas} publicaciones hasta {fin}")
         git("push")
 
 

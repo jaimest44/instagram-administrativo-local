@@ -103,7 +103,21 @@ def pendientes(hoy, publicadas):
     if not os.path.isdir(COLA):
         return []
     dias = sorted(d for d in os.listdir(COLA) if os.path.isfile(os.path.join(COLA, d, "meta.json")))
-    return [d for d in dias if d <= hoy.isoformat() and d not in publicadas]
+    # la fecha son los 10 primeros caracteres ("2026-10-23_mediodia" es del dia 23)
+    return [d for d in dias if d[:10] <= hoy.isoformat() and d not in publicadas]
+
+
+# Dos publicaciones al dia: (sufijo de la carpeta en cola/, hora de Madrid a partir de la que se publica)
+FRANJAS = [("_mediodia", dt.time(14, 0)), ("", None)]  # None = HORA_PUBLICACION (noche)
+
+
+def franja_actual(ahora):
+    """Sufijo de la franja que toca a esta hora, o None si aun no toca ninguna."""
+    sufijo = None
+    for suf, hora in FRANJAS:
+        if ahora.time() >= (hora or HORA_PUBLICACION):
+            sufijo = suf
+    return sufijo
 
 
 def comprobar_cuenta():
@@ -184,7 +198,7 @@ def main():
         hoy -= dt.timedelta(days=1)  # el cron de anoche llego tarde: le toca al dia de ayer
     publicadas = leer_json(PUBLICADAS, {})
     cola = pendientes(hoy, publicadas)
-    futuras = [d for d in os.listdir(COLA) if d > hoy.isoformat()] if os.path.isdir(COLA) else []
+    futuras = sorted({d[:10] for d in os.listdir(COLA) if d[:10] > hoy.isoformat()}) if os.path.isdir(COLA) else []
     print(f"Hoy {hoy}. Pendientes: {len(cola)}. Días preparados por delante: {len(futuras)}.")
     if len(futuras) < AVISO_COLA:
         print(f"::warning::Solo quedan {len(futuras)} días en cola. Ejecuta generar_cola.py en el PC.")
@@ -198,14 +212,19 @@ def main():
     if not cola:
         print("Nada que publicar hoy.")
         return
-    if not (a.ya or a.simular or de_madrugada) and ahora.time() < HORA_PUBLICACION:
-        print(f"Son las {ahora:%H:%M} en Madrid: se publica a partir de las {HORA_PUBLICACION:%H:%M}.")
-        return
+    # franja que toca: de madrugada, la noche de ayer (el cron llego tarde)
+    sufijo = "" if de_madrugada else franja_actual(ahora)
+    if sufijo is None:
+        if not (a.ya or a.simular):
+            print(f"Son las {ahora:%H:%M} en Madrid: la primera publicación es a las {FRANJAS[0][1]:%H:%M}.")
+            return
+        sufijo = FRANJAS[0][0]
 
-    # solo la de hoy y como mucho una al dia: los dias que fallaron se saltan
-    dia = hoy.isoformat()
+    # solo la de esta franja y como mucho una por franja: las que fallaron se saltan
+    dia = hoy.isoformat() + sufijo
     if dia not in cola:
-        print(f"Nada para hoy (hay {len(cola)} días antiguos sin publicar que se saltan).")
+        hecho = dia in publicadas
+        print(f"Nada para {dia}" + (" (ya publicada)." if hecho else f" (hay {len(cola)} antiguas sin publicar que se saltan)."))
         return
     if a.simular:
         print(f"Publicaría {dia}: {url_base()}/{dia}")
