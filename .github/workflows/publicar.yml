@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       modo:
-        description: "publicar | simular | comprobar | diagnosticar"
+        description: "publicar | simular | comprobar | diagnosticar | probar_reel"
         default: "comprobar"
         required: true
 

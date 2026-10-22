@@ -131,6 +131,19 @@ def comprobar_cuenta():
     return real
 
 
+def publicar_reel(dia, meta, texto, base):
+    """Publica el reel.mp4 de la carpeta como Reel (y lo comparte tambien en el feed)."""
+    ig = os.environ["IG_USER_ID"]
+    cont = api("POST", f"{ig}/media", media_type="REELS", video_url=f"{base}/{meta['reel']}",
+               caption=texto, share_to_feed="true")
+    esperar_contenedor(cont["id"], maximo=600)  # el video tarda mas en procesarse
+    pub = api("POST", f"{ig}/media_publish", creation_id=cont["id"])
+    info = api("GET", pub["id"], fields="permalink")
+    return {"media_id": pub["id"], "permalink": info.get("permalink", ""), "tipo": "reel",
+            "publicado": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+            "id_pregunta": meta.get("id")}
+
+
 def publicar(dia):
     carpeta = os.path.join(COLA, dia)
     meta = leer_json(os.path.join(carpeta, "meta.json"), {})
@@ -139,6 +152,8 @@ def publicar(dia):
     ig = os.environ["IG_USER_ID"]
     base = f"{url_base()}/{dia}"
     comprobar_cuenta()
+    if meta.get("reel"):
+        return publicar_reel(dia, meta, texto, base)
 
     hijos = []
     for img in meta["imagenes"]:
@@ -189,6 +204,8 @@ def main():
     ap.add_argument("--simular", action="store_true")
     ap.add_argument("--ya", action="store_true", help="publica aunque no sea la hora")
     ap.add_argument("--diagnosticar", action="store_true", help="muestra los permisos del token (nunca el token)")
+    ap.add_argument("--probar_reel", action="store_true",
+                    help="Instagram descarga y procesa el proximo Reel de la cola, sin publicarlo")
     a = ap.parse_args()
 
     ahora = dt.datetime.now(ZoneInfo("Europe/Madrid"))
@@ -205,6 +222,23 @@ def main():
 
     if a.comprobar:
         print(f"Token correcto. Cuenta: @{comprobar_cuenta()}")
+        return
+    if a.probar_reel:
+        prox = next((d for d in sorted(os.listdir(COLA)) if d[:10] >= hoy.isoformat() and d not in publicadas
+                     and leer_json(os.path.join(COLA, d, "meta.json"), {}).get("reel")), None)
+        if not prox:
+            print("No hay ningún Reel en la cola.")
+            return
+        comprobar_cuenta()
+        url = f"{url_base()}/{prox}/reel.mp4"
+        cont = api("POST", f"{os.environ['IG_USER_ID']}/media", media_type="REELS", video_url=url,
+                   caption="prueba", share_to_feed="true")
+        try:
+            esperar_contenedor(cont["id"], maximo=600)
+        except ErrorAPI as e:
+            print(f"::error::Instagram no aceptó el Reel de {prox}: {e}")
+            sys.exit(1)
+        print(f"Reel de {prox} aceptado y procesado por Instagram (NO se ha publicado).")
         return
     if a.diagnosticar:
         diagnosticar()

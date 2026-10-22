@@ -18,6 +18,7 @@ from collections import defaultdict
 
 from caption import caption
 from carrusel import generar
+from reel import generar_reel
 from datos import cargar, es_desarrollo, problemas
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
@@ -84,6 +85,16 @@ def tipo_para(dia, franja, disponibles):
     return tipo
 
 
+def caption_reel(texto):
+    """El texto del carrusel habla de "deslizar"; en el Reel la solucion sale sola a los 5 segundos."""
+    parrafos = texto.split("\n\n")
+    for i, par in enumerate(parrafos):
+        if "desliza" in par.lower():
+            parrafos[i] = "Tienes 5 segundos ⏱️ Comenta tu respuesta antes de que aparezca la solución."
+            break
+    return "\n\n".join(parrafos)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dias", type=int, default=30, help="dias de cola que deben quedar preparados")
@@ -133,14 +144,24 @@ def main():
         clave = dia.isoformat() + sufijo
         carpeta = os.path.join(COLA, clave)
         imagenes = [os.path.basename(r) for r in generar(p, carpeta)]
+        texto = caption(p)
+        reel = None
+        if franja == "mediodia":  # el de mediodia sale como Reel: llega a quien aun no te sigue
+            try:
+                reel = os.path.basename(generar_reel(carpeta))
+                texto = caption_reel(texto)
+            except Exception as e:  # si falla el video, se publica como carrusel
+                print(f"   (no se pudo crear el Reel: {e})")
         with open(os.path.join(carpeta, "caption.txt"), "w", encoding="utf-8") as f:
-            f.write(caption(p))
+            f.write(texto)
         meta = {
             "fecha": dia.isoformat(), "franja": franja, "id": p["id"],
             "formato": "desarrollo" if es_desarrollo(p) else p["tipo"],
             "convocatoria": p["convocatoria"], "tema": p["tema"], "caso": caso(p),
             "imagenes": imagenes,
         }
+        if reel:
+            meta["reel"] = reel
         guardar_json(os.path.join(carpeta, "meta.json"), meta)
         usadas[p["id"]] = clave
         historial.append(meta)
