@@ -277,6 +277,11 @@ def main():
 
     if a.comprobar:
         print(f"Token correcto. Cuenta: @{comprobar_cuenta()}")
+        if os.environ.get("FB_PAGE_ID") and os.environ.get("FB_PAGE_TOKEN"):
+            pagina = fb_api("GET", os.environ["FB_PAGE_ID"], fields="name")
+            print(f"Facebook correcto. Página: {pagina.get('name')}")
+        else:
+            print("Facebook: sin configurar (falta ejecutar publicador/configurar_facebook.py).")
         return
     if a.probar_reel:
         prox = next((d for d in sorted(os.listdir(COLA)) if d[:10] >= hoy.isoformat() and d not in publicadas
