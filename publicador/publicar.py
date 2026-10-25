@@ -284,13 +284,13 @@ def main():
             print("Facebook: sin configurar (falta ejecutar publicador/configurar_facebook.py).")
         return
     if a.probar_reel:
-        prox = next((d for d in sorted(os.listdir(COLA)) if d[:10] >= hoy.isoformat() and d not in publicadas
+        prox = os.environ.get("PROBAR_CARPETA") or next((d for d in sorted(os.listdir(COLA)) if d[:10] >= hoy.isoformat() and d not in publicadas
                      and leer_json(os.path.join(COLA, d, "meta.json"), {}).get("reel")), None)
         if not prox:
             print("No hay ningún Reel en la cola.")
             return
         comprobar_cuenta()
-        url = f"{url_base()}/{prox}/reel.mp4"
+        url = f"{url_base()}/{prox}/{leer_json(os.path.join(COLA, prox, 'meta.json'), {}).get('reel', 'reel.mp4')}"
         cont = api("POST", f"{os.environ['IG_USER_ID']}/media", media_type="REELS", video_url=url,
                    caption="prueba", share_to_feed="true")
         try:
@@ -322,6 +322,23 @@ def main():
         return
     if a.simular:
         print(f"Publicaría {dia}: {url_base()}/{dia}")
+        return
+    meta_dia = leer_json(os.path.join(COLA, dia, "meta.json"), {})
+    if meta_dia.get("solo_facebook"):  # p. ej. videos de mas de 3 min: no caben como Reel
+        try:
+            fb = publicar_facebook(dia)
+        except ErrorAPI as e:
+            print(f"::error::No se pudo publicar {dia} en Facebook: {e}")
+            sys.exit(1)
+        if not fb:
+            print(f"::error::{dia} es solo para Facebook y Facebook no está configurado.")
+            sys.exit(1)
+        publicadas[dia] = {"tipo": "solo_facebook", "facebook": fb, "permalink": "",
+                           "publicado": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+                           "id_pregunta": meta_dia.get("id")}
+        with open(PUBLICADAS, "w", encoding="utf-8") as f:
+            json.dump(publicadas, f, ensure_ascii=False, indent=1, sort_keys=True)
+        print(f"Publicado {dia} solo en Facebook: {fb}")
         return
     try:
         resultado = publicar(dia)
