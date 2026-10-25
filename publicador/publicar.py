@@ -109,7 +109,8 @@ def pendientes(hoy, publicadas):
 
 
 # Dos publicaciones al dia: (sufijo de la carpeta en cola/, hora de Madrid a partir de la que se publica)
-FRANJAS = [("_mediodia", dt.time(14, 0)), ("", None)]  # None = HORA_PUBLICACION (noche)
+FRANJAS = [("_mediodia", dt.time(14, 0)), ("_tarde", dt.time(18, 0)), ("", None)]  # None = HORA_PUBLICACION (noche)
+# _tarde: videos propios (p. ej. supuestos en dibujos); solo se publica si hay carpeta ese dia
 
 
 def franja_actual(ahora):

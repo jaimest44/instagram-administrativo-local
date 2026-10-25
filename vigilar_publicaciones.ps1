@@ -12,8 +12,8 @@ $gh  = "C:\Program Files\GitHub CLI\gh.exe"
 $log = Join-Path $PSScriptRoot "salida\vigilancia.log"
 $hoy = $Fecha
 # a media tarde se vigila la publicacion de mediodia; por la noche, la de la noche
-if (-not $PSBoundParameters.ContainsKey("Franja")) { $Franja = $(if ((Get-Date).Hour -lt 18) { "mediodia" } else { "noche" }) }
-$clave = $(if ($Franja -eq "mediodia") { "${hoy}_mediodia" } else { $hoy })
+if (-not $PSBoundParameters.ContainsKey("Franja")) { $Franja = $(if ((Get-Date).Hour -lt 17) { "mediodia" } elseif ((Get-Date).Hour -lt 20) { "tarde" } else { "noche" }) }
+$clave = $(if ($Franja -eq "noche") { $hoy } else { "${hoy}_$Franja" })
 New-Item -ItemType Directory -Force (Split-Path $log) | Out-Null
 
 function Publicado($repo) {
@@ -47,6 +47,8 @@ $pendientes = @()
 foreach ($r in $repos) {
   if (Publicado $r.repo) {
     Add-Content $log "$clave $(Get-Date -f HH:mm) OK $($r.cuenta)"
+  } elseif ($Franja -eq "tarde" -and -not (Hay-Cola $r.repo)) {
+    continue  # la franja de tarde solo existe los dias con video propio
   } elseif (-not (Hay-Cola $r.repo)) {
     Add-Content $log "$clave $(Get-Date -f HH:mm) SIN COLA $($r.cuenta)"
     Avisar "$($r.cuenta) no tiene carrusel preparado para $clave. Ejecuta actualizar_cola.bat."
