@@ -260,6 +260,8 @@ def main():
     ap.add_argument("--simular", action="store_true")
     ap.add_argument("--ya", action="store_true", help="publica aunque no sea la hora")
     ap.add_argument("--diagnosticar", action="store_true", help="muestra los permisos del token (nunca el token)")
+    ap.add_argument("--publicar_ahora", action="store_true",
+                    help="publica YA la carpeta indicada en PROBAR_CARPETA (publicaciones puntuales)")
     ap.add_argument("--probar_reel", action="store_true",
                     help="Instagram descarga y procesa el proximo Reel de la cola, sin publicarlo")
     a = ap.parse_args()
@@ -304,26 +306,35 @@ def main():
     if a.diagnosticar:
         diagnosticar()
         return
-    if not cola:
-        print("Nada que publicar hoy.")
-        return
-    # franja que toca: de madrugada, la noche de ayer (el cron llego tarde)
-    sufijo = "" if de_madrugada else franja_actual(ahora)
-    if sufijo is None:
-        if not (a.ya or a.simular):
-            print(f"Son las {ahora:%H:%M} en Madrid: la primera publicación es a las {FRANJAS[0][1]:%H:%M}.")
+    if a.publicar_ahora:  # publicacion puntual: la carpeta indicada, ya (lo lanza una tarea a su hora)
+        dia = os.environ.get("PROBAR_CARPETA", "")
+        if not dia or not os.path.isfile(os.path.join(COLA, dia, "meta.json")):
+            print(f"::error::No existe la carpeta cola/{dia}.")
+            sys.exit(1)
+        if dia in publicadas:
+            print(f"{dia} ya estaba publicada.")
             return
-        sufijo = FRANJAS[0][0]
+    else:
+        if not cola:
+            print("Nada que publicar hoy.")
+            return
+        # franja que toca: de madrugada, la noche de ayer (el cron llego tarde)
+        sufijo = "" if de_madrugada else franja_actual(ahora)
+        if sufijo is None:
+            if not (a.ya or a.simular):
+                print(f"Son las {ahora:%H:%M} en Madrid: la primera publicación es a las {FRANJAS[0][1]:%H:%M}.")
+                return
+            sufijo = FRANJAS[0][0]
 
-    # solo la de esta franja y como mucho una por franja: las que fallaron se saltan
-    dia = hoy.isoformat() + sufijo
-    if dia not in cola:
-        hecho = dia in publicadas
-        print(f"Nada para {dia}" + (" (ya publicada)." if hecho else f" (hay {len(cola)} antiguas sin publicar que se saltan)."))
-        return
-    if a.simular:
-        print(f"Publicaría {dia}: {url_base()}/{dia}")
-        return
+        # solo la de esta franja y como mucho una por franja: las que fallaron se saltan
+        dia = hoy.isoformat() + sufijo
+        if dia not in cola:
+            hecho = dia in publicadas
+            print(f"Nada para {dia}" + (" (ya publicada)." if hecho else f" (hay {len(cola)} antiguas sin publicar que se saltan)."))
+            return
+        if a.simular:
+            print(f"Publicaría {dia}: {url_base()}/{dia}")
+            return
     meta_dia = leer_json(os.path.join(COLA, dia, "meta.json"), {})
     if meta_dia.get("solo_facebook"):  # p. ej. videos de mas de 3 min: no caben como Reel
         try:
