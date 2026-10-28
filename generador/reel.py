@@ -42,23 +42,37 @@ def ffmpeg():
 
 
 def lienzo(diapositiva, arriba, abajo=None, color_abajo=None):
-    img = Image.new("RGB", (W, H), FONDO)
-    img.paste(Image.open(diapositiva).convert("RGB"), (0, ARRIBA))
+    """Diapositiva del carrusel sobre el fondo de la marca (degradado con rayas si existe),
+    fundida por arriba y por abajo para que no se note el corte."""
+    if hasattr(C, "fondo_base"):
+        img = C.fondo_base(W, H)
+    else:
+        img = Image.new("RGB", (W, H), FONDO)
+    # sin el pie del carrusel ("Desliza para la solucion" y los puntos): en un video no aplica
+    diapo = Image.open(diapositiva).convert("RGB").crop((0, 0, C.W, C.H - 140))
+    mascara = Image.new("L", diapo.size, 255)
+    dm = ImageDraw.Draw(mascara)
+    for i in range(40):  # 40 px de fundido arriba y abajo
+        a = int(255 * i / 40)
+        dm.line((0, i, diapo.width, i), fill=a)
+        dm.line((0, diapo.height - 1 - i, diapo.width, diapo.height - 1 - i), fill=a)
+    img.paste(diapo, (0, ARRIBA), mascara)
     d = ImageDraw.Draw(img)
-    # tapa el pie del carrusel ("Desliza para la solucion" y los puntos): en un video no aplica
-    d.rectangle((0, ARRIBA + C.H - 140, W, ARRIBA + C.H), fill=FONDO)
-    f, _, _ = C.ajustar(d, arriba, TIT, W - 120, 120, 84, 48, 1.0)
-    d.text((W // 2, ARRIBA // 2 + 10), arriba, font=f, fill=TEXTO, anchor="mm")
+    f, _, _ = C.ajustar(d, arriba, TIT, W - 120, 120, 92, 48, 1.0)
+    d.text((W // 2, ARRIBA // 2), arriba, font=f, fill=TEXTO, anchor="mm")
+    ambar = getattr(C, "AMBAR", ACENTO)
+    d.line((W // 2 - 70, ARRIBA // 2 + 62, W // 2 + 70, ARRIBA // 2 + 62), fill=ambar, width=6)
     if abajo:
-        f2, _, _ = C.ajustar(d, abajo, TIT, W - 120, 120, 76, 40, 1.0)
-        d.text((W // 2, ARRIBA + C.H + (H - ARRIBA - C.H) // 2), abajo, font=f2, fill=color_abajo or ACENTO, anchor="mm")
+        f2, _, _ = C.ajustar(d, abajo, TIT, W - 120, 120, 80, 40, 1.0)
+        d.text((W // 2, ARRIBA + C.H - 140 + (H - ARRIBA - C.H + 140) // 2), abajo,
+               font=f2, fill=color_abajo or ACENTO, anchor="mm")
     return img, d
 
 
 def marco_cuenta_atras(diapositiva, quedan):
     img, d = lienzo(diapositiva, "¿SABRÍAS RESPONDER?")
-    cy = ARRIBA + C.H + (H - ARRIBA - C.H) // 2
-    r = 95
+    cy = ARRIBA + C.H - 140 + (H - ARRIBA - C.H + 140) // 2
+    r = 105
     # anillo de progreso
     d.ellipse((W // 2 - r, cy - r, W // 2 + r, cy + r), outline=(200, 205, 215) if not TEMA_OSCURO else (60, 70, 110), width=14)
     fin = -90 + 360 * quedan / SEGUNDOS_PREGUNTA

@@ -1,4 +1,4 @@
-"""Dibuja los carruseles de @administrativo_local_andalucia (1080x1350, tema oscuro, mismo formato que Local Andalucía).
+"""Dibuja los carruseles de @administrativo_local_andalucia (1080x1350, mismo formato que Local Andalucía).
 
 Formatos:
   - test        pregunta · solucion · trampa · cta
@@ -28,9 +28,11 @@ LIMITE = H - 150  # por debajo va el pie
 MIN_CASO = 350  # mas corto: el caso va en la diapositiva de la pregunta (nunca se omite)
 
 # Paleta de la marca (logo y posts anteriores)
-FONDO = (9, 17, 42)
-TARJETA = (19, 27, 62)
-BORDE = (44, 56, 104)
+FONDO = (11, 37, 69)        # azul marino de la infografia (#0b2545)
+FONDO_ALTO = (13, 44, 85)   # degradado: arriba (#0d2c55)
+FONDO_BAJO = (8, 26, 51)    # degradado: abajo (#081a33)
+TARJETA = (24, 50, 84)      # tarjeta translucida sobre el fondo
+BORDE = (58, 86, 124)
 CIAN = (56, 182, 255)  # azul de la marca Administrativo
 BLANCO = (255, 255, 255)
 TEXTO = (226, 230, 242)
@@ -40,11 +42,19 @@ VERDE = (52, 199, 120)
 NARANJA = (245, 166, 35)
 ROJO = (235, 87, 87)
 MORADO = (176, 146, 255)
+AMBAR = (242, 183, 5)       # antetitulos (#f2b705)
+NAVY_TXT = (11, 37, 69)
+
+MARCA = "ADMINISTRATIVO"     # pastilla de la cabecera
+LISTA_CTA = ["Exámenes oficiales de Ayuntamientos andaluces", "Cada pregunta justificada con su artículo",
+             "Supuestos prácticos resueltos paso a paso", "Plan completo: 9,99 €/mes, precio congelado"]
 
 GRAVEDAD = {"leve": VERDE, "grave": NARANJA, "muy grave": ROJO}
 
 FUENTES = "C:/Windows/Fonts/"
-TIT = "segoeuib.ttf"
+TIT = "bahn:Bold Condensed"    # titulos y preguntas (Bahnschrift, como la infografia)
+DISPLAY = "bahn:Bold"         # cifras y botones
+SEMI = "bahn:SemiBold"        # antetitulos y etiquetas
 TXT = "segoeui.ttf"
 TXT_B = "segoeuib.ttf"
 TXT_SB = "seguisb.ttf"
@@ -54,11 +64,17 @@ _cache = {}
 
 
 def fuente(nombre, tam):
+    """Admite "bahn:<variante>" para Bahnschrift (fuente variable de Windows)."""
     if (nombre, tam) not in _cache:
         try:
-            _cache[(nombre, tam)] = ImageFont.truetype(FUENTES + nombre, tam)
+            if nombre.startswith("bahn:"):
+                f = ImageFont.truetype(FUENTES + "bahnschrift.ttf", tam)
+                f.set_variation_by_name(nombre[5:])
+            else:
+                f = ImageFont.truetype(FUENTES + nombre, tam)
         except OSError:
-            _cache[(nombre, tam)] = ImageFont.truetype(FUENTES + TXT_B, tam)
+            f = ImageFont.truetype(FUENTES + TXT_B, tam)
+        _cache[(nombre, tam)] = f
     return _cache[(nombre, tam)]
 
 
@@ -169,8 +185,7 @@ def logo():
         img = img.crop(img.convert("L").point(lambda v: 255 if v < 200 else 0).getbbox()).convert("RGBA")
         px = []
         for r, g, b, _ in img.getdata():
-            m = min(r, g, b)
-            alfa = 0 if m >= 205 else max(0, min(255, int((255 - m) * 3)))  # fondo claro: transparente del todo
+            alfa = max(0, min(255, int((255 - min(r, g, b)) * 3)))
             if max(r, g, b) < 110:  # azul marino casi negro -> blanco
                 r, g, b = 255, 255, 255
             elif g > r and g > b and g < 140:  # verde oscuro -> verde claro legible
@@ -190,26 +205,75 @@ def texto_espaciado(d, centro_x, y, texto, f, color, espacio=4):
         x += d.textlength(c, font=f) + espacio
 
 
+_fondos = {}
+
+
+def fondo_base(w, h):
+    """Degradado azul (arriba mas claro, abajo mas oscuro) con rayas diagonales muy suaves,
+    como el fondo de la infografia. Se calcula una vez por tamaño."""
+    if (w, h) not in _fondos:
+        img = Image.new("RGB", (w, h))
+        d = ImageDraw.Draw(img)
+        for y in range(h):
+            t = y / (h - 1)
+            if t < 0.55:
+                a, b, k = FONDO_ALTO, FONDO, t / 0.55
+            else:
+                a, b, k = FONDO, FONDO_BAJO, (t - 0.55) / 0.45
+            d.line((0, y, w, y), fill=tuple(int(a[i] + (b[i] - a[i]) * k) for i in range(3)))
+        rayas = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        dr = ImageDraw.Draw(rayas)
+        for x in range(-h, w + h, 36):  # franjas de 18 px cada 36 px, a 45 grados
+            dr.polygon([(x, 0), (x + 18, 0), (x + 18 + h, h), (x + h, h)], fill=(255, 255, 255, 7))
+        brillo = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        db = ImageDraw.Draw(brillo)
+        for i in range(8):  # resplandor suave arriba a la derecha
+            r = 700 - i * 70
+            db.ellipse((w - r // 2, -r // 2, w + r // 2, r // 2), fill=(70, 140, 220, 6))
+        img = Image.alpha_composite(Image.alpha_composite(img.convert("RGBA"), rayas), brillo).convert("RGB")
+        _fondos[(w, h)] = img
+    return _fondos[(w, h)].copy()
+
+
+def pegatina(img, texto, xy, angulo=-3, tam=34):
+    """Etiqueta blanca inclinada con sombra cian, como «Lo que más cae en el examen»."""
+    d0 = ImageDraw.Draw(img)
+    f = fuente(SEMI, tam)
+    ancho, alto = int(d0.textlength(texto, font=f)) + 56, tam + 34
+    capa = Image.new("RGBA", (ancho + 20, alto + 20), (0, 0, 0, 0))
+    dc = ImageDraw.Draw(capa)
+    dc.rounded_rectangle((8, 10, ancho + 8, alto + 10), radius=14, fill=CIAN + (255,))
+    dc.rounded_rectangle((0, 0, ancho, alto), radius=14, fill=(255, 255, 255, 255))
+    dc.text((28, alto // 2), texto, font=f, fill=NAVY_TXT, anchor="lm")
+    capa = capa.rotate(-angulo, expand=True, resample=Image.BICUBIC)
+    img.paste(capa, xy, capa)
+
+
 def lienzo(titulo_pildora):
-    img = Image.new("RGB", (W, H), FONDO)
+    """Cabecera como la infografia: logo a la izquierda, pastilla de la marca a la derecha
+    y antetitulo en ambar con letras espaciadas."""
+    img = fondo_base(W, H)
     d = ImageDraw.Draw(img)
-    # brillo suave de fondo en la esquina
-    for i in range(6):
-        r = 520 - i * 70
-        d.ellipse((W - r // 2 - 60, -r // 2, W + r // 2 - 60, r // 2), fill=(10 + i, 16 + i * 2, 50 + i * 4))
-    d.text((W // 2, 46), USUARIO, font=fuente(TXT_SB, 26), fill=GRIS, anchor="mm")
     lg = logo()
-    img.paste(lg, ((W - lg.width) // 2, 82), lg)
-    f = fuente(TXT_B, 30)
-    ancho = sum(d.textlength(c, font=f) for c in titulo_pildora) + 4 * (len(titulo_pildora) - 1) + 110
-    x0 = (W - ancho) // 2
-    d.rounded_rectangle((x0, 222, x0 + ancho, 284), radius=18, fill=PILDORA)
-    texto_espaciado(d, W / 2, 233, titulo_pildora, f, FONDO)
+    esc = 92 / lg.height
+    lg = lg.resize((int(lg.width * esc), 92), Image.LANCZOS)
+    img.paste(lg, (M, 52), lg)
+    f = fuente(SEMI, 28)
+    ancho = sum(d.textlength(c, font=f) for c in MARCA) + 3 * (len(MARCA) - 1) + 56
+    x1 = W - M
+    d.rounded_rectangle((x1 - ancho, 70, x1, 124), radius=27, outline=CIAN, width=3)
+    texto_espaciado(d, x1 - ancho / 2, 82, MARCA, f, CIAN, 3)
+    fk = fuente(SEMI, 30)
+    x = M
+    for c in titulo_pildora:  # antetitulo espaciado, alineado a la izquierda
+        d.text((x, 210), c, font=fk, fill=AMBAR)
+        x += d.textlength(c, font=fk) + 7
+    d.line((M, 262, M + 120, 262), fill=AMBAR, width=4)
     return img, d
 
 
 def pie(d, texto):
-    d.text((M, H - 92), texto, font=fuente(TXT_SB, 28), fill=GRIS)
+    d.text((M, H - 92), texto, font=fuente(TXT_SB, 28), fill=(185, 200, 221))
 
 
 def puntos(img, actual, total):
@@ -222,7 +286,7 @@ def puntos(img, actual, total):
 
 
 def etiqueta(d, xy, texto, color, tam=24):
-    f = fuente(TXT_B, tam)
+    f = fuente(SEMI, tam + 2)
     x, y = xy
     w = d.textlength(texto, font=f)
     caja = (x, y, x + w + 36, y + tam + 22)
@@ -237,7 +301,7 @@ def fila_etiquetas(d, y, etiquetas, tam=24):
     for texto, color in etiquetas:
         if not texto:
             continue
-        f = fuente(TXT_B, tam)
+        f = fuente(SEMI, tam + 2)
         if x > M and x + d.textlength(texto, font=f) + 36 > W - M:
             x, y = M, fin_y + 12
         x2, fin_y = etiqueta(d, (x, y), texto, color, tam)
@@ -264,7 +328,7 @@ def caja_texto(d, y, lineas, f, tam, color=TEXTO, titulo=None, barra=None, inter
 
 def tarjeta_opcion(d, caja, letra, texto, estado="normal"):
     x0, y0, x1, y1 = caja
-    fondo, borde, circ, txt, ltxt = TARJETA, BORDE, (36, 46, 90), TEXTO, BLANCO
+    fondo, borde, circ, txt, ltxt = TARJETA, BORDE, CIAN, BLANCO, NAVY_TXT
     if estado == "correcta":
         fondo, borde, circ, txt, ltxt = (14, 52, 46), VERDE, VERDE, BLANCO, FONDO
     elif estado == "incorrecta":
@@ -273,7 +337,7 @@ def tarjeta_opcion(d, caja, letra, texto, estado="normal"):
     r = 26
     cx, cy = x0 + 26 + r, (y0 + y1) // 2
     d.rounded_rectangle((cx - r, cy - r, cx + r, cy + r), radius=12, fill=circ)
-    d.text((cx, cy), letra, font=fuente(TXT_B, 28), fill=ltxt, anchor="mm")
+    d.text((cx, cy), letra, font=fuente(DISPLAY, 32), fill=ltxt, anchor="mm")
     tx = cx + r + 24
     derecha = x1 - (80 if estado == "incorrecta" else 22)
     f, lineas, tam = ajustar(d, texto, TXT_SB if estado == "correcta" else TXT,
@@ -335,7 +399,7 @@ def slide_pregunta(p):
     for letra, texto in opciones:
         tarjeta_opcion(d, (M, y, W - M, y + alto), letra, texto)
         y += alto + hueco
-    pie(d, "Comenta tu respuesta  ·  Desliza para la solución  →")
+    pegatina(img, "¿La sabes? Comenta tu respuesta", (M - 6, H - 128), angulo=-2.5, tam=32)
     return img
 
 
@@ -486,37 +550,41 @@ def slide_infraccion_solucion(i):
 # ---------------------------------------------------------------- llamada a la app
 
 def slide_cta(p):
+    """Cierre como la infografia: titulo en dos colores, tarjeta blanca con lo que incluye la app,
+    boton cian con la web y «Guárdalo y compártelo»."""
     img, d = lienzo(pildora(p))
+    conv = p["convocatoria"].upper() + "."
     if p["tipo"] == "test":
-        lineas = [("ESTA CAYÓ EN", BLANCO), (p["convocatoria"].upper() + ".", CIAN),
-                  ("¿CUÁNTAS MÁS", BLANCO), ("ACERTARÍAS?", BLANCO)]
-        sub = "Exámenes oficiales de Administrativo de Ayuntamientos andaluces, resueltos y justificados artículo a artículo."
-        boton = "ACCEDE A MÁS TEST EN LA APP"
+        lineas = [("ESTA CAYÓ EN", BLANCO), (conv, CIAN), ("¿CUÁNTAS MÁS", BLANCO), ("ACERTARÍAS?", BLANCO)]
     elif p["tipo"] == "infraccion":
         lineas = [("TODO EL", BLANCO), ("CODIFICADO", CIAN), ("EN TU", BLANCO), ("BOLSILLO.", BLANCO)]
-        sub = "Tráfico, seguridad ciudadana, animales, ocio, comercio... Infracciones, cuantías y órganos competentes."
-        boton = "ACCEDE AL CODIFICADO EN LA APP"
     else:
-        lineas = [("ESTE SUPUESTO", BLANCO), ("CAYÓ EN", BLANCO), (p["convocatoria"].upper() + ".", CIAN),
-                  ("¿LO TENÍAS?", BLANCO)]
-        sub = "Supuestos prácticos reales de Ayuntamientos andaluces, resueltos paso a paso y con la norma aplicable."
-        boton = "ACCEDE A MÁS SUPUESTOS EN LA APP"
-    y = TOP + 10
+        lineas = [("ESTE SUPUESTO", BLANCO), ("CAYÓ EN", BLANCO), (conv, CIAN), ("¿LO TENÍAS?", BLANCO)]
+    y = TOP - 6
     for texto, color in lineas:
-        f, _, _ = ajustar(d, texto, TIT, W - 2 * M, 100, 88, 48, 1.0)
+        f, _, _ = ajustar(d, texto, TIT, W - 2 * M, 96, 86, 50, 1.0)
         d.text((M, y), texto, font=f, fill=color)
-        y += 100
-    d.line((M, y + 22, M + 380, y + 22), fill=CIAN, width=5)
-    y += 64
-    f2, l2, t2 = ajustar(d, sub, TXT, W - 2 * M, 150, 36, 26, 1.35)
-    y = escribir(d, (M, y), l2, f2, t2, TEXTO, 1.35) + 46
-    fb = fuente(TXT_B, 32)
-    bw = sum(d.textlength(c, font=fb) for c in boton) + 3 * len(boton) + 90
-    bx = (W - bw) // 2
-    d.rounded_rectangle((bx, y, bx + bw, y + 96), radius=22, fill=CIAN)
-    texto_espaciado(d, W / 2, y + 28, boton, fb, FONDO, 3)
-    d.text((W // 2, y + 140), URL_APP, font=fuente(TXT_SB, 32), fill=BLANCO, anchor="mm")
-    pie(d, "Enlace en la bio")
+        y += 94
+    y += 26
+    # tarjeta blanca con lo que incluye la app
+    fl = fuente(TXT_SB, 31)
+    alto_card = 74 + len(LISTA_CTA) * 54
+    d.rounded_rectangle((M, y, W - M, y + alto_card), radius=26, fill=(255, 255, 255))
+    d.text((M + 40, y + 26), "En la app tienes:", font=fuente(SEMI, 32), fill=NAVY_TXT)
+    yy = y + 78
+    for item in LISTA_CTA:
+        cx, cy = M + 56, yy + 18
+        d.ellipse((cx - 16, cy - 16, cx + 16, cy + 16), fill=CIAN)
+        d.line((cx - 8, cy, cx - 2, cy + 7, cx + 9, cy - 7), fill=NAVY_TXT, width=4)
+        d.text((cx + 32, cy), item, font=fl, fill=NAVY_TXT, anchor="lm")
+        yy += 54
+    y += alto_card + 28
+    # boton cian con la web
+    d.rounded_rectangle((M, y, W - M, y + 128), radius=30, fill=CIAN)
+    d.text((W // 2, y + 36), "Empieza gratis en", font=fuente(SEMI, 32), fill=NAVY_TXT, anchor="mm")
+    fu, _, _ = ajustar(d, URL_APP, DISPLAY, W - 2 * M - 80, 70, 58, 36, 1.0)
+    d.text((W // 2, y + 86), URL_APP, font=fu, fill=NAVY_TXT, anchor="mm")
+    pie(d, "Guárdalo y compártelo con quien prepare la oposición")
     return img
 
 
