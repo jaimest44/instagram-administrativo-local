@@ -24,7 +24,7 @@ FICHAS = r"C:/Users/jaime/Downloads/INFOGRAFIA LEYES/ADMINISTRATIVO"
 AQUI = os.path.dirname(os.path.abspath(__file__))
 COLA = os.path.join(AQUI, "..", "cola")
 ESTADO = os.path.join(AQUI, "..", "estado", "infografias_usadas.json")
-EN_LA_APP = True  # Jaime confirmo el 29/10 que los esquemas estan en la app
+EN_LA_APP = False  # comprobado 2/11: las 42 fichas NO estan en la app de Administrativo. True solo cuando se suban
 RUTA_APP = ""  # ruta dentro de la app (vacio: solo la URL)
 SIN_LEY = (9, 39, 40, 41)  # sintesis sin una ley detras (IA, Windows, ofimatica, navegadores): al final de la serie
 
@@ -340,8 +340,8 @@ def caption(fi, n, formato):
         partes.append("Cada martes y viernes, un tema nuevo. Las fichas completas de los 41 temas, con casos prácticos y "
                       f"trampas de examen, están en {C.URL_APP}" + (f" → {RUTA_APP}" if RUTA_APP else "") + " (enlace en la bio).")
     else:
-        partes.append("Cada martes y viernes, un tema nuevo. Exámenes oficiales de Ayuntamientos andaluces, "
-                      f"con cada pregunta justificada, en {C.URL_APP} (enlace en la bio). Puedes empezar gratis.")
+        partes.append("Cada martes y viernes, un tema nuevo. Exámenes oficiales de Ayuntamientos andaluces, con cada "
+                      f"pregunta justificada: regístrate gratis en {C.URL_APP} y haz tu primer test en 5 minutos (enlace en la bio).")
     partes.append("📌 Guárdalo y compártelo con quien esté preparando la oposición.")
     partes.append("#oposicionesandalucia #administrativo #esquemasvisuales")
     return "\n\n".join(partes)
