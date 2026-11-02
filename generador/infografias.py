@@ -24,8 +24,8 @@ FICHAS = r"C:/Users/jaime/Downloads/INFOGRAFIA LEYES/ADMINISTRATIVO"
 AQUI = os.path.dirname(os.path.abspath(__file__))
 COLA = os.path.join(AQUI, "..", "cola")
 ESTADO = os.path.join(AQUI, "..", "estado", "infografias_usadas.json")
-EN_LA_APP = False  # comprobado 2/11: las 42 fichas NO estan en la app de Administrativo. True solo cuando se suban
-RUTA_APP = ""  # ruta dentro de la app (vacio: solo la URL)
+EN_LA_APP = True  # subidas el 2/11 (Plan Completo; la del Tema 1 es de prueba gratis)
+RUTA_APP = "Recursos > Test > Esquemas visuales"
 SIN_LEY = (9, 39, 40, 41)  # sintesis sin una ley detras (IA, Windows, ofimatica, navegadores): al final de la serie
 
 
@@ -142,12 +142,8 @@ def tarjeta_cierre(d, y):
     y += alto + 26
     d.rounded_rectangle((C.M, y, C.W - C.M, y + 150), radius=30, fill=C.CIAN)
     if EN_LA_APP:
-        if RUTA_APP:
-            d.text((C.W // 2, y + 38), "Regístrate en " + C.URL_APP, font=C.fuente(C.DISPLAY, 40), fill=C.NAVY_TXT, anchor="mm")
-            d.text((C.W // 2, y + 96), RUTA_APP, font=C.fuente(C.SEMI, 31), fill=C.NAVY_TXT, anchor="mm")
-        else:
-            d.text((C.W // 2, y + 44), "Todas las fichas en", font=C.fuente(C.SEMI, 34), fill=C.NAVY_TXT, anchor="mm")
-            d.text((C.W // 2, y + 102), C.URL_APP, font=C.fuente(C.DISPLAY, 56), fill=C.NAVY_TXT, anchor="mm")
+        d.text((C.W // 2, y + 44), "Regístrate gratis y mira la ficha del Tema 1 en", font=C.fuente(C.SEMI, 34), fill=C.NAVY_TXT, anchor="mm")
+        d.text((C.W // 2, y + 102), C.URL_APP, font=C.fuente(C.DISPLAY, 56), fill=C.NAVY_TXT, anchor="mm")
     else:
         d.text((C.W // 2, y + 44), "Empieza gratis en", font=C.fuente(C.SEMI, 34), fill=C.NAVY_TXT, anchor="mm")
         d.text((C.W // 2, y + 102), C.URL_APP, font=C.fuente(C.DISPLAY, 56), fill=C.NAVY_TXT, anchor="mm")
@@ -155,7 +151,7 @@ def tarjeta_cierre(d, y):
 
 
 def titulos_cierre(d, y, tam=90, paso=96):
-    lineas = (("LAS FICHAS DE", C.BLANCO), ("LOS 41 TEMAS,", C.CIAN), ("EN LA APP.", C.BLANCO)) if EN_LA_APP else         (("ESTUDIA TU", C.BLANCO), ("OPOSICIÓN", C.CIAN), ("CON EXÁMENES REALES.", C.BLANCO))
+    lineas = (("LAS FICHAS DE", C.BLANCO), ("LOS 41 TEMAS,", C.CIAN), ("EN EL PLAN COMPLETO.", C.BLANCO)) if EN_LA_APP else         (("ESTUDIA TU", C.BLANCO), ("OPOSICIÓN", C.CIAN), ("CON EXÁMENES REALES.", C.BLANCO))
     for texto, color in lineas:
         f, _, _ = C.ajustar(d, texto, C.TIT, C.W - 2 * C.M, paso, tam, 50, 1.0)
         d.text((C.M, y), texto, font=f, fill=color)
@@ -337,8 +333,8 @@ def caption(fi, n, formato):
     partes.append(f"Esquema visual del Tema {n}: {fi['titulo']}" + (f" · {fi['sub']}" if fi["sub"] else "") + "."
                   + (f" {fi['norma']}" if fi["norma"] else ""))
     if EN_LA_APP:
-        partes.append("Cada martes y viernes, un tema nuevo. Las fichas completas de los 41 temas, con casos prácticos y "
-                      f"trampas de examen, están en {C.URL_APP}" + (f" → {RUTA_APP}" if RUTA_APP else "") + " (enlace en la bio).")
+        partes.append("Cada martes y viernes, un tema nuevo. Las fichas de los 41 temas, con casos prácticos y trampas de examen, "
+                      f"están en el Plan Completo ({RUTA_APP.replace('>', '→')}). Regístrate gratis en {C.URL_APP} y mira gratis la del Tema 1 (enlace en la bio).")
     else:
         partes.append("Cada martes y viernes, un tema nuevo. Exámenes oficiales de Ayuntamientos andaluces, con cada "
                       f"pregunta justificada: regístrate gratis en {C.URL_APP} y haz tu primer test en 5 minutos (enlace en la bio).")
