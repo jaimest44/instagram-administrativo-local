@@ -30,7 +30,11 @@ jobs:
   publicar:
     runs-on: ubuntu-latest
     steps:
+      # ref: main = lo ultimo de la rama al arrancar. Sin esto, una ejecucion que esperaba en la cola (concurrency)
+      # usa el commit de cuando se lanzo, no ve lo publicado por la anterior y publica otra vez (paso el 3/11).
       - uses: actions/checkout@v4
+        with:
+          ref: main
 
       - uses: actions/setup-python@v5
         with:
