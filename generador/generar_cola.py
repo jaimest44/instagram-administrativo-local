@@ -31,6 +31,9 @@ PLAN_SEMANAL = {0: "test", 1: "test", 2: "corta", 3: "test", 4: "test", 5: "cort
 
 # Dos publicaciones al dia: mediodia (carpeta AAAA-MM-DD_mediodia) y noche (carpeta AAAA-MM-DD)
 FRANJAS = [("_mediodia", "mediodia"), ("", "noche")]
+# 5/11/2026: Jaime pausa los test y supuestos automaticos (mediodia y noche). False para reanudar;
+# las carpetas que quedaban pendientes estan en cola_pausada/ (devolverlas a cola/).
+PAUSAR_AUTOMATICAS = True
 
 
 # Separacion minima (en publicaciones) antes de repetir tema / convocatoria / caso
@@ -111,7 +114,7 @@ def main():
     huecos = []  # (dia, sufijo de carpeta, franja) que faltan por generar
     dia = hoy + dt.timedelta(days=1)
     while dia <= fin:
-        for sufijo, franja in FRANJAS:
+        for sufijo, franja in ([] if PAUSAR_AUTOMATICAS else FRANJAS):
             if dia.isoformat() + sufijo not in en_cola:
                 huecos.append((dia, sufijo, franja))
         dia += dt.timedelta(days=1)

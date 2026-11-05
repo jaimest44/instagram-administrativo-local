@@ -4,9 +4,10 @@
 
 param([string]$Fecha = (Get-Date).ToString("yyyy-MM-dd"), [string]$Franja, [switch]$SoloComprobar)
 
+# pausadas: franjas que desde el 5/11/2026 no tienen publicacion automatica (si no hay cola, no se avisa)
 $repos = @(
-  @{ repo = "jaimest44/instagram-administrativo-local"; cuenta = "@administrativo_local_andalucia" },
-  @{ repo = "jaimest44/instagram-local-andalucia";      cuenta = "@localandalucia" }
+  @{ repo = "jaimest44/instagram-administrativo-local"; cuenta = "@administrativo_local_andalucia"; pausadas = @("mediodia", "noche") },
+  @{ repo = "jaimest44/instagram-local-andalucia";      cuenta = "@localandalucia";                 pausadas = @("noche") }
 )
 $gh  = "C:\Program Files\GitHub CLI\gh.exe"
 $log = Join-Path $PSScriptRoot "salida\vigilancia.log"
@@ -47,7 +48,7 @@ $pendientes = @()
 foreach ($r in $repos) {
   if (Publicado $r.repo) {
     Add-Content $log "$clave $(Get-Date -f HH:mm) OK $($r.cuenta)"
-  } elseif ($Franja -in @("tarde", "manana") -and -not (Hay-Cola $r.repo)) {
+  } elseif (($Franja -in @("tarde", "manana") -or $Franja -in $r.pausadas) -and -not (Hay-Cola $r.repo)) {
     continue  # las franjas de manana y tarde solo existen algunos dias
   } elseif (-not (Hay-Cola $r.repo)) {
     Add-Content $log "$clave $(Get-Date -f HH:mm) SIN COLA $($r.cuenta)"
