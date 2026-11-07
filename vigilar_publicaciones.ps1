@@ -7,7 +7,7 @@ param([string]$Fecha = (Get-Date).ToString("yyyy-MM-dd"), [string]$Franja, [swit
 # pausadas: franjas que desde el 5/11/2026 no tienen publicacion automatica (si no hay cola, no se avisa)
 $repos = @(
   @{ repo = "jaimest44/instagram-administrativo-local"; cuenta = "@administrativo_local_andalucia"; pausadas = @("mediodia", "noche") },
-  @{ repo = "jaimest44/instagram-local-andalucia";      cuenta = "@localandalucia";                 pausadas = @("noche") }
+  @{ repo = "jaimest44/instagram-local-andalucia";      cuenta = "@localandalucia";                 pausadas = @("mediodia", "noche") }  # 6/11: solo 11:00
 )
 $gh  = "C:\Program Files\GitHub CLI\gh.exe"
 $log = Join-Path $PSScriptRoot "salida\vigilancia.log"
